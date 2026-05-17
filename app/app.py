@@ -94,9 +94,9 @@ img {
 
 
 # Load data
-movies = pd.read_pickle("models/movies.pkl")
+movies = pd.read_pickle("../models/movies.pkl")
 
-with open("models/similarity.pkl", "rb") as f:
+with open("../models/similarity.pkl", "rb") as f:
     similarity = pickle.load(f)
 
 # TMDB API Key
