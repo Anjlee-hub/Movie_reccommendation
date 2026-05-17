@@ -101,11 +101,10 @@ with open("models/similarity.pkl", "rb") as f:
 
 # TMDB API Key
 API_KEY = st.secrets["API_KEY"]
-API_KEY = "6a453da8e590c7d114e3ca819036c7cf"
+
 
 # Fetch poster from TMDB
-
-def fetch_poster(movie_id):
+def fetch_movie_details(movie_id):
 
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={API_KEY}&language=en-US"
@@ -116,17 +115,30 @@ def fetch_poster(movie_id):
 
         poster_path = data.get('poster_path')
 
-        if poster_path is not None:
-            full_path = "https://image.tmdb.org/t/p/w500/" + poster_path
-            return full_path
+        if poster_path:
+            poster = "https://image.tmdb.org/t/p/w500/" + poster_path
+        else:
+            poster = "https://via.placeholder.com/500x750/0f172a/ffffff?text=No+Poster"
 
-        # Fallback poster
-        return "https://via.placeholder.com/500x750/0f172a/ffffff?text=No+Poster"
+        rating = data.get('vote_average', 'Not Available')
+
+        overview = data.get('overview', 'Overview not available.')
+
+        release_date = data.get('release_date', 'Unknown')
+
+        return poster, rating, overview, release_date
 
     except Exception as e:
-        print("Error:", e)
-        return "https://via.placeholder.com/500x750/0f172a/ffffff?text=Connection+Error"
 
+        print("Error:", e)
+
+        return (
+            "https://via.placeholder.com/500x750/0f172a/ffffff?text=Connection+Error",
+            "Not Available",
+            "No overview available.",
+            "Unknown"
+        )
+# Recommendation function
 # Recommendation function
 # Recommendation function
 # Recommendation function
@@ -136,7 +148,7 @@ def recommend(movie):
     close_matches = difflib.get_close_matches(movie, movies['title'].values)
 
     if not close_matches:
-        return [], []
+        return []
 
     movie = close_matches[0]
 
@@ -150,22 +162,26 @@ def recommend(movie):
         key=lambda x: x[1]
     )[1:6]
 
-    recommended_movies = []
-    recommended_posters = []
+    recommended_movies_data = []
 
     for i in movies_list:
 
         movie_id = movies.iloc[i[0]].movie_id
 
-        recommended_movies.append(movies.iloc[i[0]].title)
+        poster, rating, overview, release_date = fetch_movie_details(movie_id)
 
-        recommended_posters.append(fetch_poster(movie_id))
+        recommended_movies_data.append({
+            "title": movies.iloc[i[0]].title,
+            "poster": poster,
+            "rating": rating,
+            "overview": overview,
+            "release_date": release_date
+        })
 
-    return recommended_movies, recommended_posters
+    return recommended_movies_data
 
 
 # Streamlit UI
-# Page config
 st.set_page_config(
     page_title="Movie Recommender",
     page_icon="🎬",
@@ -194,44 +210,37 @@ selected_movie = st.selectbox(
 typed_movie = st.text_input(
     "🔍 Or type a movie name"
 )
-# Recommendation button
+
 # Recommendation button
 if st.button("Recommend"):
 
-    movie_name = typed_movie if typed_movie else selected_movie
+    with st.spinner("Finding best recommendations for you..."):
 
-    names, posters = recommend(movie_name)
+        movie_name = typed_movie if typed_movie else selected_movie
 
-    st.write("")
-    st.subheader("Recommended Movies")
+        movie_data = recommend(movie_name)
 
-    if len(names) == 0:
-        st.error("Movie not found. Try another name.")
+        st.write("")
+        st.subheader("Recommended Movies")
 
-    else:
+        if len(movie_data) == 0:
 
-        col1, col2, col3, col4, col5, col6= st.columns(6)
+            st.error("Movie not found. Try another name.")
 
-        with col1:
-            st.image(posters[0], use_container_width=True)
-            st.caption(names[0])
+        else:
 
-        with col2:
-            st.image(posters[1], use_container_width=True)
-            st.caption(names[1])
+            cols = st.columns(5)
 
-        with col3:
-            st.image(posters[2], use_container_width=True)
-            st.caption(names[2])
+            for idx, movie in enumerate(movie_data):
 
-        with col4:
-            st.image(posters[3], use_container_width=True)
-            st.caption(names[3])
+                with cols[idx]:
 
-        with col5:
-            st.image(posters[4], use_container_width=True)
-            st.caption(names[4])
-        
-        with col6:
-            st.image("https://via.placeholder.com/500x750/0f172a/ffffff?text=More+Coming+Soon", use_container_width=True)
-            st.caption("More Coming Soon")
+                    st.image(movie["poster"], use_container_width=True)
+
+                    st.markdown(f"### {movie['title']}")
+
+                    st.markdown(f"⭐ Rating: {movie['rating']}")
+
+                    st.markdown(f"📅 Release: {movie['release_date']}")
+
+                    st.caption(movie["overview"][:120] + "...")
